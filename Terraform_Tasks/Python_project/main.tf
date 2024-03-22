@@ -1,0 +1,109 @@
+provider "aws" {
+  region = "ap-south-1"
+  access_key = "AKIATA56LGDNQDSZVT2E"
+  secret_key = "dt66xIv+uoLE/HsIo271E2tWS2uw0WGjAoUhtS4y"
+}
+
+variable "cidr" {
+  default = "10.0.0.0/16"
+}
+
+resource "aws_key_pair" "example" {
+  key_name   = "terraform-demo-aaditya"
+  public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCsGOE+FOq/MQ1gWnlvcjZjFq7haHBgq6LoQTjmiXV/z60KlCIKgdHgE7L3ykpO/JtX81npytbMdJVgdQd+EWOoK81JbQRyCYZZJi3G9LlTSs++d5aOH+6z/sOZwfDQqRkZ6eN6za6mcMT+gaS0HIBpQqkfmEygf5tapwYznxM7DJQMfB8PXWqrhKfOQTwoIy3fXXdmyoBAlmAoLn+teC4Pp/ih+sp5L8UqeKozuJZHJjpet3uP+llBx9OXsfMpCK074oLbxeh2nneFB72uhw+slK5olw74Un089fajAUJomcLwkOGSbz1bc46YiZtj2FiXOsTN8X9tOymqEXBOHlbZDJEC0xHRjac8AtJrhEFKnHrzW3W7ETyP+A2gankGJfcfBd0TH2C5YcKLsSLSdCe8cfP/+juuX5GyVjvjg1zRUK3YbhCdCp0JG90DTbNDuzHd/TBJl00lO6qGJGsXw2toqgrIghJFYYGSAxzE3grJffCN3tGtfVN9UF+Xhc6JuXc= aaditya@Aaditya"
+}
+
+resource "aws_vpc" "myvpc" {
+  cidr_block = var.cidr
+}
+
+resource "aws_subnet" "sub1" {
+  vpc_id                  = aws_vpc.myvpc.id
+  cidr_block              = "10.0.0.0/24"
+  availability_zone       = "ap-south-1b"
+  map_public_ip_on_launch = true
+}
+
+resource "aws_internet_gateway" "igw" {
+  vpc_id = aws_vpc.myvpc.id
+}
+
+resource "aws_route_table" "RT" {
+  vpc_id = aws_vpc.myvpc.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.igw.id
+  }
+}
+
+resource "aws_route_table_association" "rta1" {
+  subnet_id      = aws_subnet.sub1.id
+  route_table_id = aws_route_table.RT.id
+}
+
+resource "aws_security_group" "webSg" {
+  name   = "web"
+  vpc_id = aws_vpc.myvpc.id
+
+  ingress {
+    description = "HTTP from VPC"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  ingress {
+    description = "SSH"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "Web-sg"
+  }
+}
+
+resource "aws_instance" "server" {
+  ami                    = "ami-03bb6d83c60fc5f7c"
+  instance_type          = "t2.micro"
+  key_name      = aws_key_pair.example.key_name
+  vpc_security_group_ids = [aws_security_group.webSg.id]
+  subnet_id              = aws_subnet.sub1.id
+
+  connection {
+    type        = "ssh"
+    user        = "ubuntu"
+    private_key = file("/home/aaditya/.ssh/id_rsa")
+    host        = self.public_ip
+  }
+
+  provisioner "file" {
+    source      = "app.py"
+    destination = "/home/ubuntu/app.py"
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "echo 'Hello from the remote instance'",
+      "sudo apt update -y",
+      "sudo apt-get install -y python3-pip",
+      "cd /home/ubuntu",
+      "sudo pip3 install flask",
+      "sudo python3 app.py",
+    ]
+  }
+}
+
+output "public_ip" {
+  value = aws_instance.server.public_ip
+}
