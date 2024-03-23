@@ -1,0 +1,15 @@
+FROM openjdk:11-jdk
+
+LABEL env=production
+
+ENV demo /data/app
+
+RUN mkdir -p $demo
+
+ADD https://get.jenkins.io/war/2.397/jenkins.war $demo
+
+WORKDIR $demo
+
+EXPOSE 8080
+
+CMD ["java","-jar","jenkins.war"]
