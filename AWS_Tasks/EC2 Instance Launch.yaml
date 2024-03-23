@@ -1,0 +1,15 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: "Create a basic ec2 instance"
+Resources:
+  MyEC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0449c34f967dbf18a
+      InstanceType: t2.micro
+      KeyName: mkpint-aaditya
+      SecurityGroupIds:
+        - sg-006f7dd1ebdcb3c03
+      SubnetId: subnet-092e8785ff41c87b9
+      Tags: 
+        - Key: Name
+          Value: Myec2INT
